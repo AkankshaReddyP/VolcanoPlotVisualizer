@@ -4,7 +4,7 @@ import plotly.express as px
 from dash import Dash, dcc, html, Input, Output
 
 # --- Load Excel ---
-file_path = r"C:\Users\akank\Documents\BME\Kidney_Week_Metabolomics\Raw_Normalized_FC_Cohensd_MW_p.xlsx"
+file_path = "Raw_Normalized_FC_Cohensd_MW_p.xlsx"
 df = pd.read_excel(file_path, sheet_name="Raw")
 
 # Precompute transforms
@@ -117,3 +117,4 @@ def update_volcano(x_col, fc_cutoff, p_cutoff):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
