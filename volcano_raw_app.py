@@ -35,36 +35,41 @@ app.layout = html.Div([
             html.Br(),
 
             html.Label("Effect size (log2FC / log2d) cutoff:"),
-            dcc.Slider(
-                id="fc-slider",
-                min=0.1, max=3, step=0.1, value=1,
-                marks={i: str(i) for i in range(0, 4)},
-                tooltip={"placement": "bottom"}
-            ),
+            html.Div([
+                dcc.Slider(
+                    id="fc-slider",
+                    min=0.1, max=3, step=0.1, value=1,
+                    marks={i: str(i) for i in range(0, 4)},
+                    tooltip={"placement": "bottom"}
+                )
+            ], style={"width": "90%"}),
             html.Br(),
 
             html.Label("p-value cutoff:"),
             html.Div([
-                dcc.Slider(
-                    id="p-slider",
-                    min=-np.log10(0.2), max=-np.log10(1e-6), step=0.1,
-                    value=-np.log10(0.05),
-                    marks={
-                        -np.log10(0.2): "0.2 (0.70)",
-                        -np.log10(0.1): "0.1 (1.0)",
-                        -np.log10(0.05): "0.05 (1.3)",
-                        -np.log10(0.01): "0.01 (2.0)",
-                        -np.log10(0.001): "0.001 (3.0)",
-                        -np.log10(1e-6): "1e-6 (6.0)"
-                    },
-                    tooltip={"placement": "bottom"},
-                    style={"width": "70%", "display": "inline-block"}
-                ),
-                dcc.Input(
-                    id="p-input", type="number", value=0.05, step=0.001,
-                    min=1e-6, max=0.2,
-                    style={"width": "25%", "margin-left": "10px"}
-                )
+                html.Div([
+                    dcc.Slider(
+                        id="p-slider",
+                        min=-np.log10(0.2), max=-np.log10(1e-6), step=0.1,
+                        value=-np.log10(0.05),
+                        marks={
+                            -np.log10(0.2): "0.2 (0.70)",
+                            -np.log10(0.1): "0.1 (1.0)",
+                            -np.log10(0.05): "0.05 (1.3)",
+                            -np.log10(0.01): "0.01 (2.0)",
+                            -np.log10(0.001): "0.001 (3.0)",
+                            -np.log10(1e-6): "1e-6 (6.0)"
+                        },
+                        tooltip={"placement": "bottom"}
+                    )
+                ], style={"width": "70%", "display": "inline-block"}),
+
+                html.Div([
+                    dcc.Input(
+                        id="p-input", type="number", value=0.05, step=0.001,
+                        min=1e-6, max=0.2
+                    )
+                ], style={"width": "25%", "display": "inline-block", "margin-left": "10px"})
             ], style={"display": "flex", "align-items": "center"}),
 
             html.Div(id="p-slider-output", style={"margin-top": "5px", "font-weight": "bold"}),
