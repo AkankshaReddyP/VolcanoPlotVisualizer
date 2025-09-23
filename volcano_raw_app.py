@@ -116,5 +116,9 @@ def update_volcano(x_col, fc_cutoff, p_cutoff):
     return fig, counts_text
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    import os
+    port = int(os.environ.get("PORT", 8050))  # default to 8050 locally
+    app.run_server(host="0.0.0.0", port=port, debug=True)
+
+
 
