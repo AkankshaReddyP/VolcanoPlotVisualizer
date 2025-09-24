@@ -4,6 +4,7 @@ import plotly.express as px
 from dash import Dash, dcc, html, Input, Output, State
 import dash
 from datetime import datetime
+import io
 
 # --- Load Excel ---
 file_path = "Raw_Normalized_FC_Cohensd_MW_p.xlsx"
@@ -121,28 +122,15 @@ app.layout = html.Div([
 ])
 
 
-# --- Filtering functions ---
-def filter_fc(fc_cutoff, p_cutoff_log):
-    sig_mask = (
-        (df["neg_log10_pval"] >= p_cutoff_log) &
-        (df["log2FC"].abs() >= fc_cutoff)
-    )
-    return df.loc[sig_mask].copy()
-
-def filter_cohen(cohen_cutoff, p_cutoff_log):
-    sig_mask = (
-        (df["neg_log10_pval"] >= p_cutoff_log) &
-        (df["log2CohenD"].abs() >= cohen_cutoff)
-    )
-    return df.loc[sig_mask].copy()
-
-def filter_combined(fc_cutoff, cohen_cutoff, p_cutoff_log):
-    sig_mask = (
-        (df["neg_log10_pval"] >= p_cutoff_log) &
-        (df["log2FC"].abs() >= fc_cutoff) &
-        (df["log2CohenD"].abs() >= cohen_cutoff)
-    )
-    return df.loc[sig_mask].copy()
+# --- Helper for Excel export with 3 sheets ---
+def export_to_excel(df, filename):
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+        df[df["Category"] == "Up"].to_excel(writer, sheet_name="Up", index=False)
+        df[df["Category"] == "Down"].to_excel(writer, sheet_name="Down", index=False)
+        df[df["Category"] == "Not Significant"].to_excel(writer, sheet_name="Not_Significant", index=False)
+    buffer.seek(0)
+    return dcc.send_bytes(buffer.read, filename)
 
 
 # --- Plot functions ---
@@ -293,7 +281,7 @@ def update_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, p_input_val, x_col):
     return fig_combined, text, raw_p_cutoff, p_cutoff_log
 
 
-# --- Callbacks for downloads (trigger only on button click) ---
+# --- Callbacks for downloads (3-sheet Excel) ---
 @app.callback(
     Output("download-fc-xlsx", "data"),
     Input("download-fc-btn", "n_clicks"),
@@ -309,8 +297,13 @@ def download_fc(n_clicks, fc_cutoff, p_cutoff_log, p_input_val):
         raw_p_cutoff = 0.05
     p_cutoff_log = -np.log10(max(min(raw_p_cutoff, 1.0), 1e-10))
 
+    temp = df.copy()
+    temp["Category"] = "Not Significant"
+    temp.loc[(temp["log2FC"] >= fc_cutoff) & (temp["neg_log10_pval"] >= p_cutoff_log), "Category"] = "Up"
+    temp.loc[(temp["log2FC"] <= -fc_cutoff) & (temp["neg_log10_pval"] >= p_cutoff_log), "Category"] = "Down"
+
     filename = f"filtered_fc_compounds_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    return dcc.send_data_frame(filter_fc(fc_cutoff, p_cutoff_log).to_excel, filename, index=False)
+    return export_to_excel(temp, filename)
 
 
 @app.callback(
@@ -328,8 +321,13 @@ def download_cohen(n_clicks, cohen_cutoff, p_cutoff_log, p_input_val):
         raw_p_cutoff = 0.05
     p_cutoff_log = -np.log10(max(min(raw_p_cutoff, 1.0), 1e-10))
 
+    temp = df.copy()
+    temp["Category"] = "Not Significant"
+    temp.loc[(temp["log2CohenD"] >= cohen_cutoff) & (temp["neg_log10_pval"] >= p_cutoff_log), "Category"] = "Up"
+    temp.loc[(temp["log2CohenD"] <= -cohen_cutoff) & (temp["neg_log10_pval"] >= p_cutoff_log), "Category"] = "Down"
+
     filename = f"filtered_cohen_compounds_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    return dcc.send_data_frame(filter_cohen(cohen_cutoff, p_cutoff_log).to_excel, filename, index=False)
+    return export_to_excel(temp, filename)
 
 
 @app.callback(
@@ -348,8 +346,18 @@ def download_combined(n_clicks, fc_cutoff, cohen_cutoff, p_cutoff_log, p_input_v
         raw_p_cutoff = 0.05
     p_cutoff_log = -np.log10(max(min(raw_p_cutoff, 1.0), 1e-10))
 
+    temp = df.copy()
+    temp["Category"] = "Not Significant"
+    sig_mask = (
+        (temp["neg_log10_pval"] >= p_cutoff_log) &
+        (temp["log2FC"].abs() >= fc_cutoff) &
+        (temp["log2CohenD"].abs() >= cohen_cutoff)
+    )
+    temp.loc[sig_mask & (temp["log2FC"] > 0), "Category"] = "Up"
+    temp.loc[sig_mask & (temp["log2FC"] < 0), "Category"] = "Down"
+
     filename = f"filtered_combined_compounds_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    return dcc.send_data_frame(filter_combined(fc_cutoff, cohen_cutoff, p_cutoff_log).to_excel, filename, index=False)
+    return export_to_excel(temp, filename)
 
 
 if __name__ == "__main__":
