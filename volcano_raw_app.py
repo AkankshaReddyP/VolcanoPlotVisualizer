@@ -132,6 +132,18 @@ def export_to_excel(df, filename):
     buffer.seek(0)
     return dcc.send_bytes(buffer.read, filename)
 
+import zipfile
+
+def export_to_zip_csv(df, filename):
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for category in ["Up", "Down", "Not Significant"]:
+            data = df[df["Category"] == category]
+            csv_buffer = io.StringIO()
+            data.to_csv(csv_buffer, index=False)
+            zf.writestr(f"{category}.csv", csv_buffer.getvalue())
+    buffer.seek(0)
+    return dcc.send_bytes(buffer.read, filename.replace(".xlsx", ".zip"))
 
 # --- Plot functions ---
 def make_volcano(x_col, fc_cutoff, p_cutoff_log, raw_p_cutoff, title, xlabel, ylabel):
@@ -302,8 +314,9 @@ def download_fc(n_clicks, fc_cutoff, p_cutoff_log, p_input_val):
     temp.loc[(temp["log2FC"] >= fc_cutoff) & (temp["neg_log10_pval"] >= p_cutoff_log), "Category"] = "Up"
     temp.loc[(temp["log2FC"] <= -fc_cutoff) & (temp["neg_log10_pval"] >= p_cutoff_log), "Category"] = "Down"
 
-    filename = f"filtered_fc_compounds_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    return export_to_excel(temp, filename)
+    filename = f"filtered_fc_compounds_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    return export_to_zip_csv(temp, filename)
+
 
 
 @app.callback(
@@ -326,8 +339,9 @@ def download_cohen(n_clicks, cohen_cutoff, p_cutoff_log, p_input_val):
     temp.loc[(temp["log2CohenD"] >= cohen_cutoff) & (temp["neg_log10_pval"] >= p_cutoff_log), "Category"] = "Up"
     temp.loc[(temp["log2CohenD"] <= -cohen_cutoff) & (temp["neg_log10_pval"] >= p_cutoff_log), "Category"] = "Down"
 
-    filename = f"filtered_cohen_compounds_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    return export_to_excel(temp, filename)
+    filename = f"filtered_cohen_compounds_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    return export_to_zip_csv(temp, filename)
+
 
 
 @app.callback(
@@ -356,12 +370,13 @@ def download_combined(n_clicks, fc_cutoff, cohen_cutoff, p_cutoff_log, p_input_v
     temp.loc[sig_mask & (temp["log2FC"] > 0), "Category"] = "Up"
     temp.loc[sig_mask & (temp["log2FC"] < 0), "Category"] = "Down"
 
-    filename = f"filtered_combined_compounds_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    return export_to_excel(temp, filename)
+   filename = f"filtered_combined_compounds_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    return export_to_zip_csv(temp, filename)
 
 
 if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 8050))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
