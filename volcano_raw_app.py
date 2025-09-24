@@ -79,7 +79,7 @@ app.layout = html.Div([
         # Left plot: log2FC
         html.Div([
             dcc.Graph(id="fc-plot"),
-            slider_block("fc", "log(FC) cutoff", max_fc=5)
+            slider_block("fc", "log(FC) cutoff", max_fc=10)
         ], style={"width": "48%", "display": "inline-block", "vertical-align": "top"}),
 
         # Right plot: log2CohenD
@@ -91,7 +91,7 @@ app.layout = html.Div([
 
     html.Div([
         dcc.Graph(id="combined-plot"),
-        slider_block("combined", "log(FC) cutoff", label_cohen="log(Cohen’s d) cutoff", max_fc=5, combined=True)
+        slider_block("combined", "log(FC) cutoff", label_cohen="log(Cohen’s d) cutoff", max_fc=10, combined=True)
     ], style={"width": "98%", "margin-top": "30px"})
 ])
 
@@ -280,5 +280,6 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 8050))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
