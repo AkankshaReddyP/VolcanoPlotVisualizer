@@ -49,7 +49,7 @@ def slider_block(prefix, label_fc, label_cohen=None, default_fc=1.0, default_p=0
                     id=f"{prefix}-p-slider",
                     min=-np.log10(1.0), max=-np.log10(1e-6), step=0.01,
                     value=-np.log10(default_p),
-                    marks=None,  # no ticks
+                    marks=None,
                     tooltip={"placement": "bottom", "always_visible": True}
                 )
             ], style={"width": "70%", "display": "inline-block"}),
@@ -372,4 +372,10 @@ def download_combined(n_clicks, fc_cutoff, cohen_cutoff, p_cutoff_log, p_input_v
             raw_p_cutoff = 0.05
         p_cutoff_log = -np.log10(max(min(raw_p_cutoff, 1.0), 1e-10))
     return dcc.send_data_frame(filter_combined(fc_cutoff, cohen_cutoff, p_cutoff_log).to_excel,
-                               "filtered_combined_compounds.xlsx", index
+                               "filtered_combined_compounds.xlsx", index=False)
+
+
+if __name__ == "__main__":
+    import os
+    port = int(os.environ.get("PORT", 8050))
+    app.run(host="0.0.0.0", port=port, debug=True)
