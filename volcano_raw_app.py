@@ -132,9 +132,14 @@ def make_volcano(x_col, fc_cutoff, p_cutoff_log, raw_p_cutoff, title, xlabel, yl
 
 def make_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, raw_p_cutoff):
     df["Category"] = "Not Significant"
-    sig_mask = (df["neg_log10_pval"] >= p_cutoff_log) & (
-        (df["log2FC"].abs() >= fc_cutoff) | (df["log2CohenD"].abs() >= cohen_cutoff)
+
+    # Require BOTH FC and Cohen’s d cutoffs
+    sig_mask = (
+        (df["neg_log10_pval"] >= p_cutoff_log) &
+        (df["log2FC"].abs() >= fc_cutoff) &
+        (df["log2CohenD"].abs() >= cohen_cutoff)
     )
+
     df.loc[sig_mask & (df["log2FC"] > 0), "Category"] = "Up"
     df.loc[sig_mask & (df["log2FC"] < 0), "Category"] = "Down"
 
@@ -154,21 +159,30 @@ def make_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, raw_p_cutoff):
         hover_data={"Compounds": True, "Index": True,
                     "FC_LN_Vs_iSLE": True, "Cohen's_d_LN_Vs_iSLE": True,
                     "MW_pvalue_ALN_vs_iSLE": True},
-        title="Combined Volcano Plot (log2FC + log2Cohen’s d cutoffs)",
+        title="Combined Volcano Plot (Requires Both log2FC & log2Cohen’s d Cutoffs)",
         labels={"log2FC": "log2(FC)", "neg_log10_pval": "-log10(p-value)"}
     )
+
     for trace in fig.data:
         trace.name = color_map.get(trace.name, trace.name)
 
-    # Add cutoff lines with labels OUTSIDE
-    fig.add_hline(y=p_cutoff_log, line_dash="dash", line_color="black",
-                  annotation_text="p-value cutoff", annotation_position="top left")
-    fig.add_vline(x=fc_cutoff, line_dash="solid", line_color="red",
-                  annotation_text="FC cutoff", annotation_position="top left")
+    # Lines + external annotations (same as before)
+    fig.add_hline(y=p_cutoff_log, line_dash="dash", line_color="black")
+    fig.add_vline(x=fc_cutoff, line_dash="solid", line_color="red")
     fig.add_vline(x=-fc_cutoff, line_dash="solid", line_color="red")
-    fig.add_vline(x=cohen_cutoff, line_dash="dot", line_color="blue",
-                  annotation_text="Cohen’s d cutoff", annotation_position="top right")
+    fig.add_vline(x=cohen_cutoff, line_dash="dot", line_color="blue")
     fig.add_vline(x=-cohen_cutoff, line_dash="dot", line_color="blue")
+
+    fig.add_annotation(x=fc_cutoff, y=1, xref="x", yref="paper",
+                       text="FC cutoff", showarrow=False, yshift=20, font=dict(color="red"))
+    fig.add_annotation(x=-fc_cutoff, y=1, xref="x", yref="paper",
+                       text="-FC cutoff", showarrow=False, yshift=20, font=dict(color="red"))
+    fig.add_annotation(x=cohen_cutoff, y=1, xref="x", yref="paper",
+                       text="Cohen’s d cutoff", showarrow=False, yshift=35, font=dict(color="blue"))
+    fig.add_annotation(x=-cohen_cutoff, y=1, xref="x", yref="paper",
+                       text="-Cohen’s d cutoff", showarrow=False, yshift=35, font=dict(color="blue"))
+    fig.add_annotation(xref="paper", y=p_cutoff_log, x=0, yref="y",
+                       text="p-value cutoff", showarrow=False, xshift=-40, font=dict(color="black"))
 
     return fig
 
@@ -266,4 +280,5 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 8050))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
