@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
 from dash import Dash, dcc, html, Input, Output
 import dash
 
@@ -69,6 +68,22 @@ def slider_block(prefix, label_fc, label_cohen=None, default_fc=1.0, default_p=0
         html.Div(id=f"{prefix}-p-output", style={"margin-top": "5px", "font-weight": "bold"})
     ])
 
+    if combined:
+        children.extend([
+            html.Br(),
+            html.Label("X-axis choice:"),
+            dcc.Dropdown(
+                id="combined-xaxis",
+                options=[
+                    {"label": "log2(FC)", "value": "log2FC"},
+                    {"label": "log2(Cohen’s d)", "value": "log2CohenD"}
+                ],
+                value="log2FC",
+                clearable=False,
+                style={"width": "60%"}
+            )
+        ])
+
     return html.Div(children)
 
 
@@ -79,7 +94,7 @@ app.layout = html.Div([
         # Left plot: log2FC
         html.Div([
             dcc.Graph(id="fc-plot"),
-            slider_block("fc", "log(FC) cutoff", max_fc=10)
+            slider_block("fc", "log(FC) cutoff", max_fc=5)
         ], style={"width": "48%", "display": "inline-block", "vertical-align": "top"}),
 
         # Right plot: log2CohenD
@@ -91,7 +106,7 @@ app.layout = html.Div([
 
     html.Div([
         dcc.Graph(id="combined-plot"),
-        slider_block("combined", "log(FC) cutoff", label_cohen="log(Cohen’s d) cutoff", max_fc=10, combined=True)
+        slider_block("combined", "log(FC) cutoff", label_cohen="log(Cohen’s d) cutoff", max_fc=5, combined=True)
     ], style={"width": "98%", "margin-top": "30px"})
 ])
 
@@ -123,23 +138,21 @@ def make_volcano(x_col, fc_cutoff, p_cutoff_log, raw_p_cutoff, title, xlabel, yl
     for trace in fig.data:
         trace.name = color_map.get(trace.name, trace.name)
 
-    fig.add_hline(y=p_cutoff_log, line_dash="dash", line_color="black", annotation_text="p-value cutoff", annotation_position="top left")
-    fig.add_vline(x=fc_cutoff, line_dash="dash", line_color="black", annotation_text="cutoff", annotation_position="top left")
+    fig.add_hline(y=p_cutoff_log, line_dash="dash", line_color="black")
+    fig.add_vline(x=fc_cutoff, line_dash="dash", line_color="black")
     fig.add_vline(x=-fc_cutoff, line_dash="dash", line_color="black")
 
     return fig
 
 
-def make_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, raw_p_cutoff):
+def make_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, raw_p_cutoff, x_col):
     df["Category"] = "Not Significant"
-
     # Require BOTH FC and Cohen’s d cutoffs
     sig_mask = (
         (df["neg_log10_pval"] >= p_cutoff_log) &
         (df["log2FC"].abs() >= fc_cutoff) &
         (df["log2CohenD"].abs() >= cohen_cutoff)
     )
-
     df.loc[sig_mask & (df["log2FC"] > 0), "Category"] = "Up"
     df.loc[sig_mask & (df["log2FC"] < 0), "Category"] = "Down"
 
@@ -153,36 +166,24 @@ def make_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, raw_p_cutoff):
     }
 
     fig = px.scatter(
-        df, x="log2FC", y="neg_log10_pval",
+        df, x=x_col, y="neg_log10_pval",
         color="Category",
         color_discrete_map={"Up": "red", "Down": "blue", "Not Significant": "grey"},
         hover_data={"Compounds": True, "Index": True,
                     "FC_LN_Vs_iSLE": True, "Cohen's_d_LN_Vs_iSLE": True,
                     "MW_pvalue_ALN_vs_iSLE": True},
-        title="Combined Volcano Plot (Requires Both log2FC & log2Cohen’s d Cutoffs)",
-        labels={"log2FC": "log2(FC)", "neg_log10_pval": "-log10(p-value)"}
+        title=f"Combined Volcano Plot ({x_col} on x-axis, requires FC + Cohen’s d cutoffs)",
+        labels={x_col: x_col, "neg_log10_pval": "-log10(p-value)"}
     )
-
     for trace in fig.data:
         trace.name = color_map.get(trace.name, trace.name)
 
-    # Lines + external annotations (same as before)
+    # Cutoff lines
     fig.add_hline(y=p_cutoff_log, line_dash="dash", line_color="black")
     fig.add_vline(x=fc_cutoff, line_dash="solid", line_color="red")
     fig.add_vline(x=-fc_cutoff, line_dash="solid", line_color="red")
     fig.add_vline(x=cohen_cutoff, line_dash="dot", line_color="blue")
     fig.add_vline(x=-cohen_cutoff, line_dash="dot", line_color="blue")
-
-    fig.add_annotation(x=fc_cutoff, y=1, xref="x", yref="paper",
-                       text="FC cutoff", showarrow=False, yshift=20, font=dict(color="red"))
-    fig.add_annotation(x=-fc_cutoff, y=1, xref="x", yref="paper",
-                       text="-FC cutoff", showarrow=False, yshift=20, font=dict(color="red"))
-    fig.add_annotation(x=cohen_cutoff, y=1, xref="x", yref="paper",
-                       text="Cohen’s d cutoff", showarrow=False, yshift=35, font=dict(color="blue"))
-    fig.add_annotation(x=-cohen_cutoff, y=1, xref="x", yref="paper",
-                       text="-Cohen’s d cutoff", showarrow=False, yshift=35, font=dict(color="blue"))
-    fig.add_annotation(xref="paper", y=p_cutoff_log, x=0, yref="y",
-                       text="p-value cutoff", showarrow=False, xshift=-40, font=dict(color="black"))
 
     return fig
 
@@ -255,9 +256,10 @@ def update_cohen(cohen_cutoff, p_cutoff_log, p_input_val):
     Input("combined-fc-slider", "value"),
     Input("combined-cohen-slider", "value"),
     Input("combined-p-slider", "value"),
-    Input("combined-p-input", "value")
+    Input("combined-p-input", "value"),
+    Input("combined-xaxis", "value")
 )
-def update_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, p_input_val):
+def update_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, p_input_val, x_col):
     ctx = dash.callback_context
     trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
 
@@ -271,7 +273,7 @@ def update_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, p_input_val):
     else:
         raw_p_cutoff = 10**(-p_cutoff_log)
 
-    fig_combined = make_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, raw_p_cutoff)
+    fig_combined = make_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, raw_p_cutoff, x_col)
     text = f"Current cutoff: p ≤ {raw_p_cutoff:.5g} ( -log10 = {p_cutoff_log:.2f} )"
     return fig_combined, text, raw_p_cutoff, p_cutoff_log
 
@@ -280,6 +282,3 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 8050))
     app.run(host="0.0.0.0", port=port, debug=True)
-
-
-
