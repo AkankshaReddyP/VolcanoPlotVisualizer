@@ -16,10 +16,10 @@ df["log2CohenD"] = np.sign(df["Cohen's_d_LN_Vs_iSLE"]) * np.log2(1 + abs(df["Coh
 # --- Dash app ---
 app = Dash(__name__)
 
-def slider_block(prefix, default_fc=1.0, default_p=0.05, max_fc=5):
+def slider_block(prefix, label_fc, default_fc=1.0, default_p=0.05, max_fc=5):
     """Reusable block for sliders under each plot"""
     return html.Div([
-        html.Label("log(effect size) cutoff:"),
+        html.Label(label_fc),
         dcc.Slider(
             id=f"{prefix}-fc-slider",
             min=0, max=max_fc, step=1, value=default_fc,
@@ -27,19 +27,20 @@ def slider_block(prefix, default_fc=1.0, default_p=0.05, max_fc=5):
             tooltip={"placement": "bottom", "always_visible": True}
         ),
         html.Br(),
-        html.Label("p-value:"),
+        html.Label("log(p-value) cutoff:"),
         html.Div([
             html.Div([
                 dcc.Slider(
                     id=f"{prefix}-p-slider",
                     min=-np.log10(1.0), max=-np.log10(1e-6), step=0.01,
                     value=-np.log10(default_p),
-                    marks={},  # no ticks
+                    marks=None,  # 🚨 completely remove ticks/numbers
                     tooltip={"placement": "bottom", "always_visible": True}
                 )
             ], style={"width": "70%", "display": "inline-block"}),
 
             html.Div([
+                html.Label("p-value:"),
                 dcc.Input(
                     id=f"{prefix}-p-input", type="number",
                     value=default_p,
@@ -60,13 +61,13 @@ app.layout = html.Div([
         # Left plot: log2FC
         html.Div([
             dcc.Graph(id="fc-plot"),
-            slider_block("fc", max_fc=5)
+            slider_block("fc", "log(FC) cutoff", max_fc=5)
         ], style={"width": "48%", "display": "inline-block", "vertical-align": "top"}),
 
         # Right plot: log2CohenD
         html.Div([
             dcc.Graph(id="cohen-plot"),
-            slider_block("cohen", max_fc=5)
+            slider_block("cohen", "log(Cohen’s d) cutoff", max_fc=5)
         ], style={"width": "48%", "display": "inline-block", "vertical-align": "top", "margin-left": "2%"})
     ])
 ])
