@@ -1,8 +1,9 @@
 import pandas as pd
 import numpy as np
 import plotly.express as px
-from dash import Dash, dcc, html, Input, Output
+from dash import Dash, dcc, html, Input, Output, State
 import dash
+from datetime import datetime
 
 # --- Load Excel ---
 file_path = "Raw_Normalized_FC_Cohensd_MW_p.xlsx"
@@ -231,18 +232,12 @@ def make_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, raw_p_cutoff, x_col):
     Input("fc-p-input", "value")
 )
 def update_fc(fc_cutoff, p_cutoff_log, p_input_val):
-    ctx = dash.callback_context
-    trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
-
-    if trigger == "fc-p-input":
-        try:
-            raw_p_cutoff = float(p_input_val)
-        except:
-            raw_p_cutoff = 0.05
-        raw_p_cutoff = max(min(raw_p_cutoff, 1.0), 1e-10)
-        p_cutoff_log = -np.log10(raw_p_cutoff)
-    else:
-        raw_p_cutoff = 10**(-p_cutoff_log)
+    try:
+        raw_p_cutoff = float(p_input_val)
+    except:
+        raw_p_cutoff = 0.05
+    raw_p_cutoff = max(min(raw_p_cutoff, 1.0), 1e-10)
+    p_cutoff_log = -np.log10(raw_p_cutoff)
 
     fig_fc = make_volcano("log2FC", fc_cutoff, p_cutoff_log, raw_p_cutoff,
                           "log2(FC) vs -log10(p-value)", "log2(FC)", "-log10(p-value)")
@@ -260,18 +255,12 @@ def update_fc(fc_cutoff, p_cutoff_log, p_input_val):
     Input("cohen-p-input", "value")
 )
 def update_cohen(cohen_cutoff, p_cutoff_log, p_input_val):
-    ctx = dash.callback_context
-    trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
-
-    if trigger == "cohen-p-input":
-        try:
-            raw_p_cutoff = float(p_input_val)
-        except:
-            raw_p_cutoff = 0.05
-        raw_p_cutoff = max(min(raw_p_cutoff, 1.0), 1e-10)
-        p_cutoff_log = -np.log10(raw_p_cutoff)
-    else:
-        raw_p_cutoff = 10**(-p_cutoff_log)
+    try:
+        raw_p_cutoff = float(p_input_val)
+    except:
+        raw_p_cutoff = 0.05
+    raw_p_cutoff = max(min(raw_p_cutoff, 1.0), 1e-10)
+    p_cutoff_log = -np.log10(raw_p_cutoff)
 
     fig = make_volcano("log2CohenD", cohen_cutoff, p_cutoff_log, raw_p_cutoff,
                        "log2(Cohen’s d) vs -log10(p-value)",
@@ -292,87 +281,75 @@ def update_cohen(cohen_cutoff, p_cutoff_log, p_input_val):
     Input("combined-xaxis", "value")
 )
 def update_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, p_input_val, x_col):
-    ctx = dash.callback_context
-    trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
-
-    if trigger == "combined-p-input":
-        try:
-            raw_p_cutoff = float(p_input_val)
-        except:
-            raw_p_cutoff = 0.05
-        raw_p_cutoff = max(min(raw_p_cutoff, 1.0), 1e-10)
-        p_cutoff_log = -np.log10(raw_p_cutoff)
-    else:
-        raw_p_cutoff = 10**(-p_cutoff_log)
+    try:
+        raw_p_cutoff = float(p_input_val)
+    except:
+        raw_p_cutoff = 0.05
+    raw_p_cutoff = max(min(raw_p_cutoff, 1.0), 1e-10)
+    p_cutoff_log = -np.log10(raw_p_cutoff)
 
     fig_combined = make_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, raw_p_cutoff, x_col)
     text = f"Current cutoff: p ≤ {raw_p_cutoff:.5g} ( -log10 = {p_cutoff_log:.2f} )"
     return fig_combined, text, raw_p_cutoff, p_cutoff_log
 
 
-# --- Callbacks for downloads ---
+# --- Callbacks for downloads (trigger only on button click) ---
 @app.callback(
     Output("download-fc-xlsx", "data"),
     Input("download-fc-btn", "n_clicks"),
-    Input("fc-fc-slider", "value"),
-    Input("fc-p-slider", "value"),
-    Input("fc-p-input", "value"),
+    State("fc-fc-slider", "value"),
+    State("fc-p-slider", "value"),
+    State("fc-p-input", "value"),
     prevent_initial_call=True
 )
 def download_fc(n_clicks, fc_cutoff, p_cutoff_log, p_input_val):
-    ctx = dash.callback_context
-    trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
-    if trigger == "fc-p-input":
-        try:
-            raw_p_cutoff = float(p_input_val)
-        except:
-            raw_p_cutoff = 0.05
-        p_cutoff_log = -np.log10(max(min(raw_p_cutoff, 1.0), 1e-10))
-    return dcc.send_data_frame(filter_fc(fc_cutoff, p_cutoff_log).to_excel,
-                               "filtered_fc_compounds.xlsx", index=False)
+    try:
+        raw_p_cutoff = float(p_input_val)
+    except:
+        raw_p_cutoff = 0.05
+    p_cutoff_log = -np.log10(max(min(raw_p_cutoff, 1.0), 1e-10))
+
+    filename = f"filtered_fc_compounds_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return dcc.send_data_frame(filter_fc(fc_cutoff, p_cutoff_log).to_excel, filename, index=False)
 
 
 @app.callback(
     Output("download-cohen-xlsx", "data"),
     Input("download-cohen-btn", "n_clicks"),
-    Input("cohen-fc-slider", "value"),
-    Input("cohen-p-slider", "value"),
-    Input("cohen-p-input", "value"),
+    State("cohen-fc-slider", "value"),
+    State("cohen-p-slider", "value"),
+    State("cohen-p-input", "value"),
     prevent_initial_call=True
 )
 def download_cohen(n_clicks, cohen_cutoff, p_cutoff_log, p_input_val):
-    ctx = dash.callback_context
-    trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
-    if trigger == "cohen-p-input":
-        try:
-            raw_p_cutoff = float(p_input_val)
-        except:
-            raw_p_cutoff = 0.05
-        p_cutoff_log = -np.log10(max(min(raw_p_cutoff, 1.0), 1e-10))
-    return dcc.send_data_frame(filter_cohen(cohen_cutoff, p_cutoff_log).to_excel,
-                               "filtered_cohen_compounds.xlsx", index=False)
+    try:
+        raw_p_cutoff = float(p_input_val)
+    except:
+        raw_p_cutoff = 0.05
+    p_cutoff_log = -np.log10(max(min(raw_p_cutoff, 1.0), 1e-10))
+
+    filename = f"filtered_cohen_compounds_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return dcc.send_data_frame(filter_cohen(cohen_cutoff, p_cutoff_log).to_excel, filename, index=False)
 
 
 @app.callback(
     Output("download-combined-xlsx", "data"),
     Input("download-combined-btn", "n_clicks"),
-    Input("combined-fc-slider", "value"),
-    Input("combined-cohen-slider", "value"),
-    Input("combined-p-slider", "value"),
-    Input("combined-p-input", "value"),
+    State("combined-fc-slider", "value"),
+    State("combined-cohen-slider", "value"),
+    State("combined-p-slider", "value"),
+    State("combined-p-input", "value"),
     prevent_initial_call=True
 )
 def download_combined(n_clicks, fc_cutoff, cohen_cutoff, p_cutoff_log, p_input_val):
-    ctx = dash.callback_context
-    trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
-    if trigger == "combined-p-input":
-        try:
-            raw_p_cutoff = float(p_input_val)
-        except:
-            raw_p_cutoff = 0.05
-        p_cutoff_log = -np.log10(max(min(raw_p_cutoff, 1.0), 1e-10))
-    return dcc.send_data_frame(filter_combined(fc_cutoff, cohen_cutoff, p_cutoff_log).to_excel,
-                               "filtered_combined_compounds.xlsx", index=False)
+    try:
+        raw_p_cutoff = float(p_input_val)
+    except:
+        raw_p_cutoff = 0.05
+    p_cutoff_log = -np.log10(max(min(raw_p_cutoff, 1.0), 1e-10))
+
+    filename = f"filtered_combined_compounds_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return dcc.send_data_frame(filter_combined(fc_cutoff, cohen_cutoff, p_cutoff_log).to_excel, filename, index=False)
 
 
 if __name__ == "__main__":
