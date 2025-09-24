@@ -16,14 +16,14 @@ df["log2CohenD"] = np.sign(df["Cohen's_d_LN_Vs_iSLE"]) * np.log2(1 + abs(df["Coh
 # --- Dash app ---
 app = Dash(__name__)
 
-def slider_block(prefix, default_fc=1.0, default_p=0.05):
+def slider_block(prefix, default_fc=1.0, default_p=0.05, max_fc=5):
     """Reusable block for sliders under each plot"""
     return html.Div([
         html.Label("Effect size cutoff:"),
         dcc.Slider(
             id=f"{prefix}-fc-slider",
-            min=0.1, max=3, step=0.05, value=default_fc,
-            marks=None,  # avoid clutter
+            min=0, max=max_fc, step=1, value=default_fc,
+            marks={i: {"label": str(i), "style": {"font-size": "10px"}} for i in range(0, max_fc + 1)},
             tooltip={"placement": "bottom", "always_visible": True}
         ),
         html.Br(),
@@ -32,15 +32,10 @@ def slider_block(prefix, default_fc=1.0, default_p=0.05):
             html.Div([
                 dcc.Slider(
                     id=f"{prefix}-p-slider",
-                    min=-np.log10(0.2), max=-np.log10(1e-6), step=0.05,
+                    min=-np.log10(1.0), max=-np.log10(1e-6), step=0.01,
                     value=-np.log10(default_p),
-                    marks={
-                        -np.log10(0.2): {"label": "0.2", "style": {"font-size": "10px"}},
-                        -np.log10(0.05): {"label": "0.05", "style": {"font-size": "10px"}},
-                        -np.log10(0.01): {"label": "0.01", "style": {"font-size": "10px"}},
-                        -np.log10(0.001): {"label": "0.001", "style": {"font-size": "10px"}},
-                        -np.log10(1e-6): {"label": "1e-6", "style": {"font-size": "10px"}}
-                    },
+                    marks={-np.log10(v): {"label": f"{v:.2f}", "style": {"font-size": "8px"}}
+                           for v in np.arange(0.01, 0.21, 0.01)},
                     tooltip={"placement": "bottom", "always_visible": True}
                 )
             ], style={"width": "70%", "display": "inline-block"}),
@@ -48,8 +43,9 @@ def slider_block(prefix, default_fc=1.0, default_p=0.05):
             html.Div([
                 dcc.Input(
                     id=f"{prefix}-p-input", type="number",
-                    value=default_p, step=0.001,
-                    min=1e-6, max=0.2
+                    value=default_p,
+                    min=1e-10, max=1.0,
+                    style={"width": "100%"}
                 )
             ], style={"width": "25%", "display": "inline-block", "margin-left": "10px"})
         ], style={"display": "flex", "align-items": "center"}),
@@ -65,13 +61,13 @@ app.layout = html.Div([
         # Left plot: log2FC
         html.Div([
             dcc.Graph(id="fc-plot"),
-            slider_block("fc")
+            slider_block("fc", max_fc=5)
         ], style={"width": "48%", "display": "inline-block", "vertical-align": "top"}),
 
         # Right plot: log2CohenD
         html.Div([
             dcc.Graph(id="cohen-plot"),
-            slider_block("cohen")
+            slider_block("cohen", max_fc=5)
         ], style={"width": "48%", "display": "inline-block", "vertical-align": "top", "margin-left": "2%"})
     ])
 ])
@@ -138,7 +134,11 @@ def update_fc(fc_cutoff, p_cutoff_log, p_input_val):
     trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
 
     if trigger == "fc-p-input":
-        raw_p_cutoff = p_input_val
+        try:
+            raw_p_cutoff = float(p_input_val)
+        except (TypeError, ValueError):
+            raw_p_cutoff = 0.05
+        raw_p_cutoff = max(min(raw_p_cutoff, 1.0), 1e-10)
         p_cutoff_log = -np.log10(raw_p_cutoff)
     else:
         raw_p_cutoff = 10**(-p_cutoff_log)
@@ -146,7 +146,7 @@ def update_fc(fc_cutoff, p_cutoff_log, p_input_val):
     fig = make_volcano("log2FC", fc_cutoff, p_cutoff_log, raw_p_cutoff,
                        "log2 Fold Change vs -log10(p-value)",
                        "log2 Fold Change", "-log10(p-value)")
-    text = f"Current cutoff: p ≤ {raw_p_cutoff:.3g} ( -log10 = {p_cutoff_log:.2f} )"
+    text = f"Current cutoff: p ≤ {raw_p_cutoff:.5g} ( -log10 = {p_cutoff_log:.2f} )"
     return fig, text, raw_p_cutoff, p_cutoff_log
 
 
@@ -164,7 +164,11 @@ def update_cohen(fc_cutoff, p_cutoff_log, p_input_val):
     trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
 
     if trigger == "cohen-p-input":
-        raw_p_cutoff = p_input_val
+        try:
+            raw_p_cutoff = float(p_input_val)
+        except (TypeError, ValueError):
+            raw_p_cutoff = 0.05
+        raw_p_cutoff = max(min(raw_p_cutoff, 1.0), 1e-10)
         p_cutoff_log = -np.log10(raw_p_cutoff)
     else:
         raw_p_cutoff = 10**(-p_cutoff_log)
@@ -172,7 +176,7 @@ def update_cohen(fc_cutoff, p_cutoff_log, p_input_val):
     fig = make_volcano("log2CohenD", fc_cutoff, p_cutoff_log, raw_p_cutoff,
                        "Cohen’s d (log2) vs -log10(p-value)",
                        "Cohen’s d (log2)", "-log10(p-value)")
-    text = f"Current cutoff: p ≤ {raw_p_cutoff:.3g} ( -log10 = {p_cutoff_log:.2f} )"
+    text = f"Current cutoff: p ≤ {raw_p_cutoff:.5g} ( -log10 = {p_cutoff_log:.2f} )"
     return fig, text, raw_p_cutoff, p_cutoff_log
 
 
