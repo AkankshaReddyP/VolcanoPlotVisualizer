@@ -162,12 +162,12 @@ def make_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, raw_p_cutoff):
 
     # Add cutoff lines with labels OUTSIDE
     fig.add_hline(y=p_cutoff_log, line_dash="dash", line_color="black",
-                  annotation_text="p-value cutoff", annotation_position="outside top")
+                  annotation_text="p-value cutoff", annotation_position="top left")
     fig.add_vline(x=fc_cutoff, line_dash="solid", line_color="red",
-                  annotation_text="FC cutoff", annotation_position="outside top")
+                  annotation_text="FC cutoff", annotation_position="top left")
     fig.add_vline(x=-fc_cutoff, line_dash="solid", line_color="red")
     fig.add_vline(x=cohen_cutoff, line_dash="dot", line_color="blue",
-                  annotation_text="Cohen’s d cutoff", annotation_position="outside top")
+                  annotation_text="Cohen’s d cutoff", annotation_position="top right")
     fig.add_vline(x=-cohen_cutoff, line_dash="dot", line_color="blue")
 
     return fig
@@ -266,3 +266,4 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 8050))
     app.run(host="0.0.0.0", port=port, debug=True)
+
