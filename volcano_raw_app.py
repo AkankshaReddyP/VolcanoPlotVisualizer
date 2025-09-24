@@ -23,6 +23,7 @@ def slider_block(prefix, default_fc=1.0, default_p=0.05):
         dcc.Slider(
             id=f"{prefix}-fc-slider",
             min=0.1, max=3, step=0.05, value=default_fc,
+            marks=None,  # avoid clutter
             tooltip={"placement": "bottom", "always_visible": True}
         ),
         html.Br(),
@@ -33,6 +34,13 @@ def slider_block(prefix, default_fc=1.0, default_p=0.05):
                     id=f"{prefix}-p-slider",
                     min=-np.log10(0.2), max=-np.log10(1e-6), step=0.05,
                     value=-np.log10(default_p),
+                    marks={
+                        -np.log10(0.2): {"label": "0.2", "style": {"font-size": "10px"}},
+                        -np.log10(0.05): {"label": "0.05", "style": {"font-size": "10px"}},
+                        -np.log10(0.01): {"label": "0.01", "style": {"font-size": "10px"}},
+                        -np.log10(0.001): {"label": "0.001", "style": {"font-size": "10px"}},
+                        -np.log10(1e-6): {"label": "1e-6", "style": {"font-size": "10px"}}
+                    },
                     tooltip={"placement": "bottom", "always_visible": True}
                 )
             ], style={"width": "70%", "display": "inline-block"}),
@@ -51,7 +59,7 @@ def slider_block(prefix, default_fc=1.0, default_p=0.05):
 
 
 app.layout = html.Div([
-    html.H2("Interactive Volcano Plots (ALN vs iSLE)"),
+    html.H2("Volcano Plots of Metabolites (ALN vs iSLE)", style={"text-align": "center"}),
 
     html.Div([
         # Left plot: log2FC
@@ -69,7 +77,7 @@ app.layout = html.Div([
 ])
 
 
-def make_volcano(x_col, fc_cutoff, p_cutoff_log, raw_p_cutoff, title):
+def make_volcano(x_col, fc_cutoff, p_cutoff_log, raw_p_cutoff, title, xlabel, ylabel):
     # Classify points
     df["Category"] = "Not Significant"
     df.loc[(df[x_col] >= fc_cutoff) & (df["neg_log10_pval"] >= p_cutoff_log), "Category"] = "Up"
@@ -97,7 +105,8 @@ def make_volcano(x_col, fc_cutoff, p_cutoff_log, raw_p_cutoff, title):
             "Cohen's_d_LN_Vs_iSLE": True,
             "MW_pvalue_ALN_vs_iSLE": True
         },
-        title=title
+        title=title,
+        labels={x_col: xlabel, "neg_log10_pval": ylabel}
     )
 
     # Relabel legend items with counts
@@ -134,7 +143,9 @@ def update_fc(fc_cutoff, p_cutoff_log, p_input_val):
     else:
         raw_p_cutoff = 10**(-p_cutoff_log)
 
-    fig = make_volcano("log2FC", fc_cutoff, p_cutoff_log, raw_p_cutoff, "Volcano Plot (log2 Fold Change)")
+    fig = make_volcano("log2FC", fc_cutoff, p_cutoff_log, raw_p_cutoff,
+                       "log2 Fold Change vs -log10(p-value)",
+                       "log2 Fold Change", "-log10(p-value)")
     text = f"Current cutoff: p ≤ {raw_p_cutoff:.3g} ( -log10 = {p_cutoff_log:.2f} )"
     return fig, text, raw_p_cutoff, p_cutoff_log
 
@@ -158,7 +169,9 @@ def update_cohen(fc_cutoff, p_cutoff_log, p_input_val):
     else:
         raw_p_cutoff = 10**(-p_cutoff_log)
 
-    fig = make_volcano("log2CohenD", fc_cutoff, p_cutoff_log, raw_p_cutoff, "Volcano Plot (log2 Cohen's d)")
+    fig = make_volcano("log2CohenD", fc_cutoff, p_cutoff_log, raw_p_cutoff,
+                       "Cohen’s d (log2) vs -log10(p-value)",
+                       "Cohen’s d (log2)", "-log10(p-value)")
     text = f"Current cutoff: p ≤ {raw_p_cutoff:.3g} ( -log10 = {p_cutoff_log:.2f} )"
     return fig, text, raw_p_cutoff, p_cutoff_log
 
