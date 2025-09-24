@@ -143,7 +143,10 @@ def export_to_zip_csv(df, filename):
             data.to_csv(csv_buffer, index=False)
             zf.writestr(f"{category}.csv", csv_buffer.getvalue())
     buffer.seek(0)
-    return dcc.send_bytes(buffer.read, filename.replace(".xlsx", ".zip"))
+
+    # Correct: wrap into a lambda so Dash can call it
+    return dcc.send_bytes(lambda x: x.write(buffer.getvalue()), filename.replace(".xlsx", ".zip"))
+
 
 # --- Plot functions ---
 def make_volcano(x_col, fc_cutoff, p_cutoff_log, raw_p_cutoff, title, xlabel, ylabel):
@@ -378,6 +381,7 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 8050))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
