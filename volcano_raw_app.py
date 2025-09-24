@@ -370,7 +370,7 @@ def download_combined(n_clicks, fc_cutoff, cohen_cutoff, p_cutoff_log, p_input_v
     temp.loc[sig_mask & (temp["log2FC"] > 0), "Category"] = "Up"
     temp.loc[sig_mask & (temp["log2FC"] < 0), "Category"] = "Down"
 
-   filename = f"filtered_combined_compounds_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    filename = f"filtered_combined_compounds_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
     return export_to_zip_csv(temp, filename)
 
 
@@ -378,5 +378,6 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 8050))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
