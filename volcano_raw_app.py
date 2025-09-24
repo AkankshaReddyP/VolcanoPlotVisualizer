@@ -125,7 +125,7 @@ app.layout = html.Div([
 # --- Helper for Excel export with 3 sheets ---
 def export_to_excel(df, filename):
     buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         df[df["Category"] == "Up"].to_excel(writer, sheet_name="Up", index=False)
         df[df["Category"] == "Down"].to_excel(writer, sheet_name="Down", index=False)
         df[df["Category"] == "Not Significant"].to_excel(writer, sheet_name="Not_Significant", index=False)
@@ -364,3 +364,4 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 8050))
     app.run(host="0.0.0.0", port=port, debug=True)
+
