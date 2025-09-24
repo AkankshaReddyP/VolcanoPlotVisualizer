@@ -19,7 +19,7 @@ app = Dash(__name__)
 def slider_block(prefix, default_fc=1.0, default_p=0.05, max_fc=5):
     """Reusable block for sliders under each plot"""
     return html.Div([
-        html.Label("Effect size cutoff:"),
+        html.Label("log(effect size) cutoff:"),
         dcc.Slider(
             id=f"{prefix}-fc-slider",
             min=0, max=max_fc, step=1, value=default_fc,
@@ -27,15 +27,14 @@ def slider_block(prefix, default_fc=1.0, default_p=0.05, max_fc=5):
             tooltip={"placement": "bottom", "always_visible": True}
         ),
         html.Br(),
-        html.Label("p-value cutoff:"),
+        html.Label("p-value:"),
         html.Div([
             html.Div([
                 dcc.Slider(
                     id=f"{prefix}-p-slider",
                     min=-np.log10(1.0), max=-np.log10(1e-6), step=0.01,
                     value=-np.log10(default_p),
-                    marks={-np.log10(v): {"label": f"{v:.2f}", "style": {"font-size": "8px"}}
-                           for v in np.arange(0.01, 0.21, 0.01)},
+                    marks={},  # no ticks
                     tooltip={"placement": "bottom", "always_visible": True}
                 )
             ], style={"width": "70%", "display": "inline-block"}),
@@ -144,8 +143,8 @@ def update_fc(fc_cutoff, p_cutoff_log, p_input_val):
         raw_p_cutoff = 10**(-p_cutoff_log)
 
     fig = make_volcano("log2FC", fc_cutoff, p_cutoff_log, raw_p_cutoff,
-                       "log2 Fold Change vs -log10(p-value)",
-                       "log2 Fold Change", "-log10(p-value)")
+                       "log2(FC) vs -log10(p-value)",
+                       "log2(FC)", "-log10(p-value)")
     text = f"Current cutoff: p ≤ {raw_p_cutoff:.5g} ( -log10 = {p_cutoff_log:.2f} )"
     return fig, text, raw_p_cutoff, p_cutoff_log
 
@@ -174,8 +173,8 @@ def update_cohen(fc_cutoff, p_cutoff_log, p_input_val):
         raw_p_cutoff = 10**(-p_cutoff_log)
 
     fig = make_volcano("log2CohenD", fc_cutoff, p_cutoff_log, raw_p_cutoff,
-                       "Cohen’s d (log2) vs -log10(p-value)",
-                       "Cohen’s d (log2)", "-log10(p-value)")
+                       "log2(Cohen’s d) vs -log10(p-value)",
+                       "log2(Cohen’s d)", "-log10(p-value)")
     text = f"Current cutoff: p ≤ {raw_p_cutoff:.5g} ( -log10 = {p_cutoff_log:.2f} )"
     return fig, text, raw_p_cutoff, p_cutoff_log
 
