@@ -16,122 +16,78 @@ df["log2CohenD"] = np.sign(df["Cohen's_d_LN_Vs_iSLE"]) * np.log2(1 + abs(df["Coh
 # --- Dash app ---
 app = Dash(__name__)
 
-app.layout = html.Div([
-    html.H2("Interactive Volcano Plot (ALN vs iSLE)"),
-
-    html.Div([
-        # Left side: controls + counts
+def slider_block(prefix, default_fc=1.0, default_p=0.05):
+    """Reusable block for sliders under each plot"""
+    return html.Div([
+        html.Label("Effect size cutoff:"),
+        dcc.Slider(
+            id=f"{prefix}-fc-slider",
+            min=0.1, max=3, step=0.05, value=default_fc,
+            tooltip={"placement": "bottom", "always_visible": True}
+        ),
+        html.Br(),
+        html.Label("p-value cutoff:"),
         html.Div([
-            html.Label("X-axis choice:"),
-            dcc.Dropdown(
-                id="x-axis-choice",
-                options=[
-                    {"label": "log2 Fold Change", "value": "log2FC"},
-                    {"label": "log2 Cohen's d", "value": "log2CohenD"}
-                ],
-                value="log2FC",
-                clearable=False
-            ),
-            html.Br(),
-
-            html.Label("Effect size (log2FC / log2d) cutoff:"),
             html.Div([
                 dcc.Slider(
-                    id="fc-slider",
-                    min=0.1, max=3, step=0.1, value=1,
-                    marks={i: str(i) for i in range(0, 4)},
-                    tooltip={"placement": "bottom"}
+                    id=f"{prefix}-p-slider",
+                    min=-np.log10(0.2), max=-np.log10(1e-6), step=0.05,
+                    value=-np.log10(default_p),
+                    tooltip={"placement": "bottom", "always_visible": True}
                 )
-            ], style={"width": "90%"}),
-            html.Br(),
+            ], style={"width": "70%", "display": "inline-block"}),
 
-            html.Label("p-value cutoff:"),
             html.Div([
-                html.Div([
-                    dcc.Slider(
-                        id="p-slider",
-                        min=-np.log10(0.2), max=-np.log10(1e-6), step=0.1,
-                        value=-np.log10(0.05),
-                        marks={
-                            -np.log10(0.2): "0.2 (0.70)",
-                            -np.log10(0.1): "0.1 (1.0)",
-                            -np.log10(0.05): "0.05 (1.3)",
-                            -np.log10(0.01): "0.01 (2.0)",
-                            -np.log10(0.001): "0.001 (3.0)",
-                            -np.log10(1e-6): "1e-6 (6.0)"
-                        },
-                        tooltip={"placement": "bottom"}
-                    )
-                ], style={"width": "70%", "display": "inline-block"}),
+                dcc.Input(
+                    id=f"{prefix}-p-input", type="number",
+                    value=default_p, step=0.001,
+                    min=1e-6, max=0.2
+                )
+            ], style={"width": "25%", "display": "inline-block", "margin-left": "10px"})
+        ], style={"display": "flex", "align-items": "center"}),
 
-                html.Div([
-                    dcc.Input(
-                        id="p-input", type="number", value=0.05, step=0.001,
-                        min=1e-6, max=0.2
-                    )
-                ], style={"width": "25%", "display": "inline-block", "margin-left": "10px"})
-            ], style={"display": "flex", "align-items": "center"}),
+        html.Div(id=f"{prefix}-p-output", style={"margin-top": "5px", "font-weight": "bold"})
+    ])
 
-            html.Div(id="p-slider-output", style={"margin-top": "5px", "font-weight": "bold"}),
 
-            html.Br(),
-            html.Div(id="counts-box", style={"border": "1px solid #ccc", "padding": "10px", "margin-top": "10px"})
-        ], style={"width": "25%", "display": "inline-block", "vertical-align": "top"}),
+app.layout = html.Div([
+    html.H2("Interactive Volcano Plots (ALN vs iSLE)"),
 
-        # Right side: plot
+    html.Div([
+        # Left plot: log2FC
         html.Div([
-            dcc.Graph(id="volcano-plot")
-        ], style={"width": "70%", "display": "inline-block", "padding-left": "20px"})
+            dcc.Graph(id="fc-plot"),
+            slider_block("fc")
+        ], style={"width": "48%", "display": "inline-block", "vertical-align": "top"}),
+
+        # Right plot: log2CohenD
+        html.Div([
+            dcc.Graph(id="cohen-plot"),
+            slider_block("cohen")
+        ], style={"width": "48%", "display": "inline-block", "vertical-align": "top", "margin-left": "2%"})
     ])
 ])
 
 
-@app.callback(
-    [Output("volcano-plot", "figure"),
-     Output("counts-box", "children"),
-     Output("p-slider-output", "children"),
-     Output("p-input", "value"),
-     Output("p-slider", "value")],
-    Input("x-axis-choice", "value"),
-    Input("fc-slider", "value"),
-    Input("p-slider", "value"),
-    Input("p-input", "value")
-)
-def update_volcano(x_col, fc_cutoff, p_cutoff_log, p_input_val):
-    ctx = dash.callback_context
-    trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
-
-    if trigger == "p-input":
-        # user typed raw p-value
-        raw_p_cutoff = p_input_val
-        p_cutoff_log = -np.log10(raw_p_cutoff)
-    else:
-        # user moved slider
-        raw_p_cutoff = 10**(-p_cutoff_log)
-
+def make_volcano(x_col, fc_cutoff, p_cutoff_log, raw_p_cutoff, title):
     # Classify points
     df["Category"] = "Not Significant"
     df.loc[(df[x_col] >= fc_cutoff) & (df["neg_log10_pval"] >= p_cutoff_log), "Category"] = "Up"
     df.loc[(df[x_col] <= -fc_cutoff) & (df["neg_log10_pval"] >= p_cutoff_log), "Category"] = "Down"
 
-    # Counts
-    total = len(df)
+    # Counts for legend labels
     up_count = (df["Category"] == "Up").sum()
     down_count = (df["Category"] == "Down").sum()
     notsig_count = (df["Category"] == "Not Significant").sum()
-
-    counts_text = html.Div([
-        html.H4("Counts"),
-        html.P(f"Total metabolites: {total}"),
-        html.P(f"Significant Up (red): {up_count}"),
-        html.P(f"Significant Down (blue): {down_count}"),
-        html.P(f"Not Significant (grey): {notsig_count}")
-    ])
+    color_map = {
+        "Up": f"Up (n={up_count})",
+        "Down": f"Down (n={down_count})",
+        "Not Significant": f"Not Significant (n={notsig_count})"
+    }
 
     # Volcano plot
     fig = px.scatter(
-        df,
-        x=x_col, y="neg_log10_pval",
+        df, x=x_col, y="neg_log10_pval",
         color="Category",
         color_discrete_map={"Up": "red", "Down": "blue", "Not Significant": "grey"},
         hover_data={
@@ -141,8 +97,12 @@ def update_volcano(x_col, fc_cutoff, p_cutoff_log, p_input_val):
             "Cohen's_d_LN_Vs_iSLE": True,
             "MW_pvalue_ALN_vs_iSLE": True
         },
-        title=f"Volcano Plot ({x_col})"
+        title=title
     )
+
+    # Relabel legend items with counts
+    for trace in fig.data:
+        trace.name = color_map.get(trace.name, trace.name)
 
     # Add cutoff lines
     fig.add_hline(y=p_cutoff_log, line_dash="dash", line_color="black")
@@ -151,10 +111,56 @@ def update_volcano(x_col, fc_cutoff, p_cutoff_log, p_input_val):
 
     fig.update_traces(marker=dict(size=9, line=dict(width=0.5, color="black")))
 
-    # Slider/output text
-    p_slider_text = f"Current cutoff: p ≤ {raw_p_cutoff:.3g} ( -log10 = {p_cutoff_log:.2f} )"
+    return fig
 
-    return fig, counts_text, p_slider_text, raw_p_cutoff, p_cutoff_log
+
+# --- Callbacks for each plot ---
+@app.callback(
+    [Output("fc-plot", "figure"),
+     Output("fc-p-output", "children"),
+     Output("fc-p-input", "value"),
+     Output("fc-p-slider", "value")],
+    Input("fc-fc-slider", "value"),
+    Input("fc-p-slider", "value"),
+    Input("fc-p-input", "value")
+)
+def update_fc(fc_cutoff, p_cutoff_log, p_input_val):
+    ctx = dash.callback_context
+    trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
+
+    if trigger == "fc-p-input":
+        raw_p_cutoff = p_input_val
+        p_cutoff_log = -np.log10(raw_p_cutoff)
+    else:
+        raw_p_cutoff = 10**(-p_cutoff_log)
+
+    fig = make_volcano("log2FC", fc_cutoff, p_cutoff_log, raw_p_cutoff, "Volcano Plot (log2 Fold Change)")
+    text = f"Current cutoff: p ≤ {raw_p_cutoff:.3g} ( -log10 = {p_cutoff_log:.2f} )"
+    return fig, text, raw_p_cutoff, p_cutoff_log
+
+
+@app.callback(
+    [Output("cohen-plot", "figure"),
+     Output("cohen-p-output", "children"),
+     Output("cohen-p-input", "value"),
+     Output("cohen-p-slider", "value")],
+    Input("cohen-fc-slider", "value"),
+    Input("cohen-p-slider", "value"),
+    Input("cohen-p-input", "value")
+)
+def update_cohen(fc_cutoff, p_cutoff_log, p_input_val):
+    ctx = dash.callback_context
+    trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
+
+    if trigger == "cohen-p-input":
+        raw_p_cutoff = p_input_val
+        p_cutoff_log = -np.log10(raw_p_cutoff)
+    else:
+        raw_p_cutoff = 10**(-p_cutoff_log)
+
+    fig = make_volcano("log2CohenD", fc_cutoff, p_cutoff_log, raw_p_cutoff, "Volcano Plot (log2 Cohen's d)")
+    text = f"Current cutoff: p ≤ {raw_p_cutoff:.3g} ( -log10 = {p_cutoff_log:.2f} )"
+    return fig, text, raw_p_cutoff, p_cutoff_log
 
 
 if __name__ == "__main__":
