@@ -17,16 +17,31 @@ df["log2CohenD"] = np.sign(df["Cohen's_d_LN_Vs_iSLE"]) * np.log2(1 + abs(df["Coh
 # --- Dash app ---
 app = Dash(__name__)
 
-def slider_block(prefix, label_fc, default_fc=1.0, default_p=0.05, max_fc=5):
+def slider_block(prefix, label_fc, label_cohen=None, default_fc=1.0, default_p=0.05, max_fc=5, combined=False):
     """Reusable block for sliders under each plot"""
-    return html.Div([
+    children = [
         html.Label(label_fc),
         dcc.Slider(
             id=f"{prefix}-fc-slider",
             min=0, max=max_fc, step=1, value=default_fc,
             marks={i: {"label": str(i), "style": {"font-size": "10px"}} for i in range(0, max_fc + 1)},
             tooltip={"placement": "bottom", "always_visible": True}
-        ),
+        )
+    ]
+
+    if combined:  # add Cohen’s d slider too
+        children.extend([
+            html.Br(),
+            html.Label(label_cohen),
+            dcc.Slider(
+                id=f"{prefix}-cohen-slider",
+                min=0, max=max_fc, step=1, value=default_fc,
+                marks={i: {"label": str(i), "style": {"font-size": "10px"}} for i in range(0, max_fc + 1)},
+                tooltip={"placement": "bottom", "always_visible": True}
+            )
+        ])
+
+    children.extend([
         html.Br(),
         html.Label("log(p-value) cutoff:"),
         html.Div([
@@ -54,6 +69,8 @@ def slider_block(prefix, label_fc, default_fc=1.0, default_p=0.05, max_fc=5):
         html.Div(id=f"{prefix}-p-output", style={"margin-top": "5px", "font-weight": "bold"})
     ])
 
+    return html.Div(children)
+
 
 app.layout = html.Div([
     html.H2("Volcano Plots of Metabolites (ALN vs iSLE)", style={"text-align": "center"}),
@@ -73,7 +90,8 @@ app.layout = html.Div([
     ]),
 
     html.Div([
-        dcc.Graph(id="combined-plot")
+        dcc.Graph(id="combined-plot"),
+        slider_block("combined", "log(FC) cutoff", label_cohen="log(Cohen’s d) cutoff", max_fc=5, combined=True)
     ], style={"width": "98%", "margin-top": "30px"})
 ])
 
@@ -105,15 +123,14 @@ def make_volcano(x_col, fc_cutoff, p_cutoff_log, raw_p_cutoff, title, xlabel, yl
     for trace in fig.data:
         trace.name = color_map.get(trace.name, trace.name)
 
-    fig.add_hline(y=p_cutoff_log, line_dash="dash", line_color="black")
-    fig.add_vline(x=fc_cutoff, line_dash="dash", line_color="black")
+    fig.add_hline(y=p_cutoff_log, line_dash="dash", line_color="black", annotation_text="p-value cutoff", annotation_position="top left")
+    fig.add_vline(x=fc_cutoff, line_dash="dash", line_color="black", annotation_text="cutoff", annotation_position="top left")
     fig.add_vline(x=-fc_cutoff, line_dash="dash", line_color="black")
 
     return fig
 
 
 def make_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, raw_p_cutoff):
-    # Classification based on ANY cutoff being crossed
     df["Category"] = "Not Significant"
     sig_mask = (df["neg_log10_pval"] >= p_cutoff_log) & (
         (df["log2FC"].abs() >= fc_cutoff) | (df["log2CohenD"].abs() >= cohen_cutoff)
@@ -131,28 +148,26 @@ def make_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, raw_p_cutoff):
     }
 
     fig = px.scatter(
-        df, x="log2FC", y="neg_log10_pval",  # still use FC on x-axis
+        df, x="log2FC", y="neg_log10_pval",
         color="Category",
         color_discrete_map={"Up": "red", "Down": "blue", "Not Significant": "grey"},
         hover_data={"Compounds": True, "Index": True,
                     "FC_LN_Vs_iSLE": True, "Cohen's_d_LN_Vs_iSLE": True,
                     "MW_pvalue_ALN_vs_iSLE": True},
-        title="Combined log2(FC) & log2(Cohen’s d) Cutoffs vs -log10(p-value)",
+        title="Combined Volcano Plot (log2FC + log2Cohen’s d cutoffs)",
         labels={"log2FC": "log2(FC)", "neg_log10_pval": "-log10(p-value)"}
     )
-
     for trace in fig.data:
         trace.name = color_map.get(trace.name, trace.name)
 
-    # p-value cutoff
-    fig.add_hline(y=p_cutoff_log, line_dash="dash", line_color="black", annotation_text="p-value cutoff")
-
-    # FC cutoffs
-    fig.add_vline(x=fc_cutoff, line_dash="solid", line_color="red", annotation_text="FC cutoff")
+    # Add cutoff lines with labels OUTSIDE
+    fig.add_hline(y=p_cutoff_log, line_dash="dash", line_color="black",
+                  annotation_text="p-value cutoff", annotation_position="outside top")
+    fig.add_vline(x=fc_cutoff, line_dash="solid", line_color="red",
+                  annotation_text="FC cutoff", annotation_position="outside top")
     fig.add_vline(x=-fc_cutoff, line_dash="solid", line_color="red")
-
-    # Cohen’s d cutoffs
-    fig.add_vline(x=cohen_cutoff, line_dash="dot", line_color="blue", annotation_text="Cohen’s d cutoff")
+    fig.add_vline(x=cohen_cutoff, line_dash="dot", line_color="blue",
+                  annotation_text="Cohen’s d cutoff", annotation_position="outside top")
     fig.add_vline(x=-cohen_cutoff, line_dash="dot", line_color="blue")
 
     return fig
@@ -163,16 +178,12 @@ def make_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, raw_p_cutoff):
     [Output("fc-plot", "figure"),
      Output("fc-p-output", "children"),
      Output("fc-p-input", "value"),
-     Output("fc-p-slider", "value"),
-     Output("combined-plot", "figure")],
+     Output("fc-p-slider", "value")],
     Input("fc-fc-slider", "value"),
     Input("fc-p-slider", "value"),
-    Input("fc-p-input", "value"),
-    Input("cohen-fc-slider", "value"),
-    Input("cohen-p-slider", "value"),
-    Input("cohen-p-input", "value")
+    Input("fc-p-input", "value")
 )
-def update_fc(fc_cutoff, p_cutoff_log, p_input_val, cohen_cutoff, cohen_pcut_log, cohen_p_input):
+def update_fc(fc_cutoff, p_cutoff_log, p_input_val):
     ctx = dash.callback_context
     trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
 
@@ -189,17 +200,7 @@ def update_fc(fc_cutoff, p_cutoff_log, p_input_val, cohen_cutoff, cohen_pcut_log
     fig_fc = make_volcano("log2FC", fc_cutoff, p_cutoff_log, raw_p_cutoff,
                           "log2(FC) vs -log10(p-value)", "log2(FC)", "-log10(p-value)")
     text = f"Current cutoff: p ≤ {raw_p_cutoff:.5g} ( -log10 = {p_cutoff_log:.2f} )"
-
-    try:
-        cohen_raw = float(cohen_p_input)
-    except:
-        cohen_raw = 0.05
-    cohen_raw = max(min(cohen_raw, 1.0), 1e-10)
-    cohen_pcut_log = -np.log10(cohen_raw)
-
-    fig_combined = make_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, raw_p_cutoff)
-
-    return fig_fc, text, raw_p_cutoff, p_cutoff_log, fig_combined
+    return fig_fc, text, raw_p_cutoff, p_cutoff_log
 
 
 @app.callback(
@@ -230,6 +231,35 @@ def update_cohen(cohen_cutoff, p_cutoff_log, p_input_val):
                        "log2(Cohen’s d)", "-log10(p-value)")
     text = f"Current cutoff: p ≤ {raw_p_cutoff:.5g} ( -log10 = {p_cutoff_log:.2f} )"
     return fig, text, raw_p_cutoff, p_cutoff_log
+
+
+@app.callback(
+    [Output("combined-plot", "figure"),
+     Output("combined-p-output", "children"),
+     Output("combined-p-input", "value"),
+     Output("combined-p-slider", "value")],
+    Input("combined-fc-slider", "value"),
+    Input("combined-cohen-slider", "value"),
+    Input("combined-p-slider", "value"),
+    Input("combined-p-input", "value")
+)
+def update_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, p_input_val):
+    ctx = dash.callback_context
+    trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
+
+    if trigger == "combined-p-input":
+        try:
+            raw_p_cutoff = float(p_input_val)
+        except:
+            raw_p_cutoff = 0.05
+        raw_p_cutoff = max(min(raw_p_cutoff, 1.0), 1e-10)
+        p_cutoff_log = -np.log10(raw_p_cutoff)
+    else:
+        raw_p_cutoff = 10**(-p_cutoff_log)
+
+    fig_combined = make_combined(fc_cutoff, cohen_cutoff, p_cutoff_log, raw_p_cutoff)
+    text = f"Current cutoff: p ≤ {raw_p_cutoff:.5g} ( -log10 = {p_cutoff_log:.2f} )"
+    return fig_combined, text, raw_p_cutoff, p_cutoff_log
 
 
 if __name__ == "__main__":
